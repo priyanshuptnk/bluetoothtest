@@ -39,6 +39,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     BluetoothConnectionService mBluetoothConnection;
 
     Button btnStartConnection;
+
     Button btnSend;
     EditText etSend;
     BluetoothDevice mBTDevice;
@@ -125,16 +126,16 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             Log.d(TAG, "onReceive: ACTION FOUND");
 
             if(BluetoothDevice.ACTION_FOUND.equals(action)){
-                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice.class);
-                if(device!= null) {
+                BluetoothDevice device = (BluetoothDevice)intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+
+                if(device != null){
                     mBTDevices.add(device);
-                    Log.d(TAG, "onReceiver:" + device.getName() + ":" + device.getAddress());
-                    mDeviceListAdapter = new DeviceListAdapter(context, R.layout.device_adapter_view, mBTDevices);
+                    Log.e(TAG, "onReceiver:" + device.getName()+ ":"+ device.getAddress());
+                    mDeviceListAdapter = new DeviceListAdapter(context,R.layout.device_adapter_view, mBTDevices);
                     lvNewDevices.setAdapter(mDeviceListAdapter);
                 }else{
-                    Log.e(TAG,"onReceive:BluetoothDevice is null");
+                    Log.e(TAG, "onReceive: BluetoothDevice is null");
                 }
-
             }
 
         }
@@ -147,7 +148,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             final String action = intent.getAction();
 
             if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)){
-                BluetoothDevice mDevice = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice.class);
+                BluetoothDevice mDevice = (BluetoothDevice) intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 if (mDevice != null) {
                     //3 cases
                     //case1: bonded already
