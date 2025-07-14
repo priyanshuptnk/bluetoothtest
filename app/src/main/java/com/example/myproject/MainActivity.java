@@ -36,9 +36,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     BluetoothAdapter mBluetoothAdapter;
     Button btnEnableDisable_Discoverable;
 
+
     BluetoothConnectionService mBluetoothConnection;
 
     Button btnStartConnection;
+    Button btnDiscover;
 
     Button btnSend;
     EditText etSend;
@@ -51,12 +53,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     public ArrayList<BluetoothDevice> mBTDevices = new ArrayList<>();
     public DeviceListAdapter mDeviceListAdapter;
-
-
-
-
-    public
-    ListView lvNewDevices;
+    public ListView lvNewDevices;
 
 
 
@@ -128,11 +125,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             if(BluetoothDevice.ACTION_FOUND.equals(action)){
                 BluetoothDevice device = (BluetoothDevice)intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
-                if(device != null){
+                if(device != null && !mBTDevices.contains(device)){
                     mBTDevices.add(device);
                     Log.e(TAG, "onReceiver:" + device.getName()+ ":"+ device.getAddress());
-                    mDeviceListAdapter = new DeviceListAdapter(context,R.layout.device_adapter_view, mBTDevices);
-                    lvNewDevices.setAdapter(mDeviceListAdapter);
+                    mDeviceListAdapter.notifyDataSetChanged(); // refreshes the ListView
                 }else{
                     Log.e(TAG, "onReceive: BluetoothDevice is null");
                 }
@@ -181,6 +177,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         unregisterReceiver(mBroadcastReceiver3);
         unregisterReceiver(mBroadcastReceiver4);
         //mBluetoothAdapter.cancelDiscovery
+
+        //note: stop bluetooth connection threads safely
+        if (mBluetoothConnection != null){
+            mBluetoothConnection.stop();
+        }
+
+        Log.e(TAG, "onDestroy clean up completed.");
+
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -188,14 +192,22 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         setContentView(R.layout.activity_main);
         Button btnONOFF = findViewById(R.id.btnONOFF); // initializing the button
         btnEnableDisable_Discoverable = findViewById(R.id.btnDiscoverable_on_off);
+        btnEnableDisable_Discoverable.setOnClickListener(this::btnEnableDisable_Discoverable);
         BluetoothManager mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         mBluetoothAdapter = mBluetoothManager.getAdapter(); // bluetooth adapter obj is initialized
         // OnClickLister : Lets us define what should happen when a button is clicked
+
+        btnDiscover = findViewById(R.id.FindUnpairedDevices);
+        btnDiscover.setOnClickListener(this::btnDiscover);
+
         lvNewDevices = findViewById(R.id.lvNewDevices);
+        mDeviceListAdapter = new DeviceListAdapter(this,R.layout.device_adapter_view, mBTDevices);
+        lvNewDevices.setAdapter(mDeviceListAdapter);
         mBTDevices = new ArrayList<>();
 
         //declare the button variables
         btnStartConnection = findViewById(R.id.btnStartConnection);
+        btnStartConnection.setOnClickListener(view -> startConnection());
         btnSend = findViewById(R.id.btnSend);
         etSend = findViewById(R.id.editText);
 
@@ -220,15 +232,22 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 enableDisableBT();
 
             }
-
-
         });
 
 
-        btnSend.setOnClickListener(v -> startConnection());
-
         btnSend.setOnClickListener(v -> {
-            byte[] bytes = etSend.getText().toString().getBytes(Charset.defaultCharset());
+            if (mBluetoothConnection == null) {
+                Toast.makeText(MainActivity.this, "Not connected to any device", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            String text = etSend.getText().toString();
+            if(text.isEmpty()){
+                Toast.makeText(MainActivity.this, "Please enter text to send", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            byte[] bytes = text.getBytes(Charset.defaultCharset());
             mBluetoothConnection.write(bytes);
             etSend.setText("");
         });
@@ -248,7 +267,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     //creating method for starting connections
     public void startConnection(){
+        //null check to avoid null pointer exception
+        if(mBTDevice == null){
+            Log.e(TAG, "startConnection: No Bluetooth device selected.");
+            Toast.makeText(this, "Please select a device from the list first", Toast.LENGTH_SHORT).show();
+            return;
+        }
         startBTConnection(mBTDevice, MY_UUID_INSECURE);
+
     }
 
     //starting the chat service method
@@ -338,11 +364,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //Android must programmatically check the permissions for bluetooth. Putting the permissions in the manifest is not enough.
     private void checkBTPermissions() {
         if(Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP) {
-            int permissionCheck = this.checkSelfPermission("Manifest.permission.ACCESS_FINE_LOCATION");
-            permissionCheck += this.checkSelfPermission("Manifest.permission.ACCESS_CORES_LOCATION");
+            int permissionCheck = this.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
+            permissionCheck += this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION);
             if(permissionCheck!=0){
                 this.requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION}, 1000
+                        Manifest.permission.ACCESS_COARSE_LOCATION}, 1001
                         );
             }
         }else {

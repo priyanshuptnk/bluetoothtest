@@ -12,6 +12,7 @@ import android.widget.TextView;
 //import androidx.annotation.Nullable;
 
 import androidx.annotation.RequiresPermission;
+import androidx.recyclerview.widget.RecyclerView;
 
 //import com.example.myproject.R;
 
@@ -34,27 +35,31 @@ public class DeviceListAdapter extends ArrayAdapter<BluetoothDevice> {
     @Override
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public @NotNull View getView(int position, View convertView, @NotNull ViewGroup parent){
+        ViewHolder holder;
+
         if(convertView==null){
-            convertView = mLayoutInflater.inflate(mViewResourceId, null);
+            convertView = mLayoutInflater.inflate(mViewResourceId,parent, false);
+            holder = new ViewHolder();
+            holder.deviceName = convertView.findViewById(R.id.tvDeviceName);
+            holder.deviceAddress = convertView.findViewById(R.id.tvDeviceAddress);
+            convertView.setTag(holder);
+        } else {
+            holder = (ViewHolder) convertView.getTag();
         }
 
 
         BluetoothDevice device = mDevices.get(position);
 
         if(device !=null){
-            TextView deviceName = convertView.findViewById(R.id.tvDeviceName);
-            TextView deviceAddress = convertView.findViewById(R.id.tvDeviceAddress);
-
-            if (deviceName!=null){
-                deviceName.setText(device.getName());
-            }
-            if (deviceAddress!=null){
-                deviceAddress.setText(device.getAddress());
-            }
-
-
-
+            String name = (device.getName() != null) ? device.getName() : "Unknown Device";
+            holder.deviceName.setText(name);
+            holder.deviceAddress.setText(device.getAddress());
         }
         return convertView;
+    }
+
+    public static class ViewHolder{
+        TextView deviceName;
+        TextView deviceAddress;
     }
 }
