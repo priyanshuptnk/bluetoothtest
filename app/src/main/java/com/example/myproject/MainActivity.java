@@ -11,6 +11,7 @@ import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Build;
 
+
 import androidx.annotation.RequiresPermission;
 import androidx.appcompat.app.AppCompatActivity;
 //import androidx.core.app.ActivityCompat;
@@ -123,7 +124,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             Log.d(TAG, "onReceive: ACTION FOUND");
 
             if(BluetoothDevice.ACTION_FOUND.equals(action)){
-                BluetoothDevice device = (BluetoothDevice)intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
                 if(device != null && !mBTDevices.contains(device)){
                     mBTDevices.add(device);
@@ -168,15 +169,51 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         }
     };
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
     @Override
     protected void onDestroy(){
         Log.d(TAG, "onDestroy: called.");
         super.onDestroy();
-        unregisterReceiver(mBroadcastReceiver1);
-        unregisterReceiver(mBroadcastReceiver2);
-        unregisterReceiver(mBroadcastReceiver3);
-        unregisterReceiver(mBroadcastReceiver4);
-        //mBluetoothAdapter.cancelDiscovery
+        // this try catch technique:Prevents app crashes if a receiver was never registered or already unregistered.
+        //
+        //Cleans up Bluetooth discovery to save battery and memory.
+        //
+        //Properly handles the local broadcast receiver.
+        //
+        //Logs detailed info to help with debugging.
+        try {
+            unregisterReceiver(mBroadcastReceiver1);
+        } catch (IllegalArgumentException e){
+            Log.w(TAG, "onDestroy: mBroadcastReceiver1 was not registered.");
+        }
+        try {
+            unregisterReceiver(mBroadcastReceiver2);
+        } catch (IllegalArgumentException e){
+            Log.w(TAG, "onDestroy: mBroadcastReceiver2 was not registered.");
+        }
+        try {
+            unregisterReceiver(mBroadcastReceiver3);
+        }catch (IllegalArgumentException e){
+            Log.w(TAG, "onDestroy: mBroadcastReceiver3 was not registered.");
+        }
+        try {
+            unregisterReceiver(mBroadcastReceiver4);
+        }catch (IllegalArgumentException e){
+            Log.w(TAG, "onDestroy: mBroadcastReceiver4 was not registered.");
+        }
+
+        //safely unregister the local broadcast receiver for incoming messages
+        try {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(mReceiver);
+        } catch (IllegalArgumentException e) {
+            Log.w(TAG, "onDestroy: Local broadcast receiver mReceiver was not registered.");
+        }
+
+        // Cancel Bluetooth discovery if active
+        if (mBluetoothAdapter != null && mBluetoothAdapter.isDiscovering()) {
+            mBluetoothAdapter.cancelDiscovery();
+            Log.d(TAG, "onDestroy: Bluetooth discovery cancelled.");
+        }
 
         //note: stop bluetooth connection threads safely
         if (mBluetoothConnection != null){
@@ -199,11 +236,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         btnDiscover = findViewById(R.id.FindUnpairedDevices);
         btnDiscover.setOnClickListener(this::btnDiscover);
-
-        lvNewDevices = findViewById(R.id.lvNewDevices);
-        mDeviceListAdapter = new DeviceListAdapter(this,R.layout.device_adapter_view, mBTDevices);
-        lvNewDevices.setAdapter(mDeviceListAdapter);
+        //initializing the array list
         mBTDevices = new ArrayList<>();
+        //creating adapter using the initialized list
+        mDeviceListAdapter = new DeviceListAdapter(this,R.layout.device_adapter_view, mBTDevices);
+        //link the adapter to the list view
+        lvNewDevices = findViewById(R.id.lvNewDevices);
+        lvNewDevices.setAdapter(mDeviceListAdapter);
+
 
         //declare the button variables
         btnStartConnection = findViewById(R.id.btnStartConnection);
@@ -320,11 +360,13 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         }
 
         //Creating our button onClick method for discoverability
+        @RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
         public void btnEnableDisable_Discoverable(View view){
             Log.d(TAG, "btnEnableDisable_Discoverable: Making device discoverable for 300 seconds.");
 
             Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
             discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
+            startActivity(discoverableIntent);
 
             IntentFilter intentFiler = new IntentFilter(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
             registerReceiver(mBroadcastReceiver2, intentFiler);
@@ -333,32 +375,23 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         // creating a btn discover method
 
         @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
-        public void btnDiscover(View view){
-            Log.d(TAG,"btnDiscover: Looking for unpaired devices");
+        public void btnDiscover(View view) {
+            Log.d(TAG, "btnDiscover: Looking for unpaired devices");
+
+            if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
+                Log.e(TAG, "Bluetooth is not enabled");
+                return;
+            }
             if (mBluetoothAdapter.isDiscovering()) {
-
-                mBluetoothAdapter.cancelDiscovery();
                 Log.d(TAG, "btnDiscover: Cancelling discovery.");
+                mBluetoothAdapter.cancelDiscovery();
+            }
                 //check bt permission in manifest
-                checkBTPermissions();
-
-                mBluetoothAdapter.startDiscovery();
-                IntentFilter discoverDevicesIntent = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-                registerReceiver(mBroadcastReceiver3, discoverDevicesIntent);
-
-                if (!mBluetoothAdapter.isDiscovering()){
-                    //check BT permissions in manifest
-                    checkBTPermissions();
-                    mBluetoothAdapter.startDiscovery();
-                    IntentFilter discoverDeviceIntent = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-                    registerReceiver(mBroadcastReceiver3, discoverDeviceIntent);
-
-                }
-
-            }
-
-
-            }
+            checkBTPermissions();
+            mBluetoothAdapter.startDiscovery();
+            IntentFilter discoverDevicesIntent = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+            registerReceiver(mBroadcastReceiver3, discoverDevicesIntent);
+    }
 
 
 //Android must programmatically check the permissions for bluetooth. Putting the permissions in the manifest is not enough.
